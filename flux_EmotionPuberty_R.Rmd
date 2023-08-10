@@ -67,7 +67,9 @@ tracking <- read.csv(paste0(root, "data/abcd_y_lt.csv"))
 
 anthro <- read.csv(paste0(root, "data/ph_y_anthro.csv"))
 
-brain <- read.csv(paste0(root, "data/mri_y_tfmr_nback_"))
+brain <- read.csv(paste0(root, "data/brain/mri_y_tfmr_nback_emovntf_aseg.csv")) %>% 
+  rename("id" = "src_subject_id",
+         "wave" = "eventname")
 
 ```
 
@@ -125,7 +127,7 @@ calculate_time_difference <- function(time1, time2) {
 
 hormones$sample_collection_time <- calculate_time_difference(hormones$start_time, hormones$end_time)
 
-hormones$time_to_freezer <- calculate_time_difference(hormones$end_time, hormones$freezer)
+#hormones$time_to_freezer <- calculate_time_difference(hormones$end_time, hormones$freezer)
 
 calculate_minutes_since_midnight <- function(time) {
   # Convert time with colons to POSIXct object
@@ -186,7 +188,24 @@ puberty$sample_collection_time <- abs(puberty$sample_collection_time)
 
 count <- sum(rowSums(puberty == 999 | puberty == 777, na.rm = TRUE) > 0, na.rm = TRUE)
 
-# 8100 rows contain a 999 or 777
+# 8163 rows contain a 999 or 777
+
+## identifying folks with matching family IDs
+
+pub_matching_family_IDs <- puberty %>% 
+  group_by(family_id) %>% 
+  filter(n_distinct(id) > 1) %>% 
+  distinct(id)
+
+ids_to_keep <- pub_matching_family_IDs %>% 
+  distinct(family_id, .keep_all = TRUE)
+
+ids_to_remove <- pub_matching_family_IDs %>% 
+  anti_join(ids_to_keep, by = "id")
+
+## randomly selecting one participant from each family 
+
+puberty <- puberty[which(!puberty$id %in% ids_to_remove$id),]
 
 # creating df for each sex, removing NAs and any rows with 999 or 777 
 
@@ -199,8 +218,22 @@ puberty_female <- puberty_female %>%
          !is.na(body_hair),
          !is.na(skin_change),
          !is.na(breast_develop),
-         !is.na(menarche)) %>% 
-  filter_all(all_vars(. != 999 & . != 777))
+         !is.na(menarche),
+         !is.na(sample_collection_time),
+         !is.na(caffeine),
+         !is.na(active),
+         !is.na(midnight_to_start),
+         !is.na(site_id)) %>% 
+  filter(!growth_spurt == 999,
+         !growth_spurt == 777,
+         !body_hair == 999,
+         !body_hair == 777,
+         !skin_change == 999,
+         !skin_change == 777,
+         !breast_develop == 999,
+         !breast_develop == 777,
+         !menarche == 999,
+         !menarche == 777)
 
 puberty_male <- puberty_male %>% 
   select(-breast_develop, -menarche) %>% 
@@ -208,12 +241,38 @@ puberty_male <- puberty_male %>%
          !is.na(body_hair),
          !is.na(skin_change),
          !is.na(face_hair),
-         !is.na(voice_deep)) %>% 
-  filter_all(all_vars(. != 999 & . != 777))
+         !is.na(voice_deep),
+         !is.na(sample_collection_time),
+         !is.na(caffeine),
+         !is.na(active),
+         !is.na(midnight_to_start),
+         !is.na(site_id)) %>% 
+  filter(!growth_spurt == 999,
+         !growth_spurt == 777,
+         !body_hair == 999,
+         !body_hair == 777,
+         !skin_change == 999,
+         !skin_change == 777,
+         !face_hair == 999,
+         !face_hair == 777,
+         !voice_deep == 999,
+         !voice_deep == 777)
+
+## randomly selecting one time point for each participant 
+
+puberty_female <- puberty_female %>% 
+  group_by(id) %>% 
+  sample_n(1)
+
+## randomly selecting one time point for each participant 
+
+puberty_male <- puberty_male %>% 
+  group_by(id) %>% 
+  sample_n(1)
 
 # cleaning environment 
 
-rm(hormones, hormones_cleaned, pds, pds_cleaned, tracking, count, have_both_ids, anthro)
+rm(hormones, hormones_cleaned, pds, pds_cleaned, tracking, count, have_both_ids, anthro, ids_to_keep, ids_to_remove, pub_matching_family_IDs)
 
 ```
 
@@ -223,19 +282,28 @@ rm(hormones, hormones_cleaned, pds, pds_cleaned, tracking, count, have_both_ids,
 
 ## removing outliers 
 
+summary(puberty_female)
+boxplot(puberty_female$sample_collection_time)
+
 puberty_female <- puberty_female %>% 
-  filter(sample_collection_time < 400)
+  filter(sample_collection_time < 200)
+
+na_counts <- colSums(is.na(puberty_female))
+print(na_counts)
+
+summary(puberty_male)
+boxplot(puberty_male$sample_collection_time)
 
 puberty_male <- puberty_male %>% 
   filter(sample_collection_time < 200)
 
-model_f_dhea <- lmer(dhea ~ caffeine + active + sample_collection_time + midnight_to_start + (1 | id) + (1 | wave), data = puberty_female)
+model_f_dhea <- lmer(dhea ~ caffeine + active + sample_collection_time + midnight_to_start + (1 | site_id), data = puberty_female)
 
-model_f_tst <- lmer(tst ~ caffeine + active + sample_collection_time + midnight_to_start + (1 | id) + (1 | wave), data = puberty_female)
+model_f_tst <- lmer(tst ~ caffeine + active + sample_collection_time + midnight_to_start + (1 | site_id), data = puberty_female)
 
-model_m_dhea <- lmer(dhea ~ caffeine + active + sample_collection_time + midnight_to_start + (1 | id) + (1 | wave), data = puberty_male)
+model_m_dhea <- lmer(dhea ~ caffeine + active + sample_collection_time + midnight_to_start + (1 | site_id), data = puberty_male)
 
-model_m_tst <- lmer(tst ~ caffeine + active + sample_collection_time + midnight_to_start + (1 | id) + (1 | wave), data = puberty_male)
+model_m_tst <- lmer(tst ~ caffeine + active + sample_collection_time + midnight_to_start + (1 | site_id), data = puberty_male)
 
 puberty_female$dhea_unconfounded <- residuals(model_f_dhea)
 puberty_female$tst_unconfounded <- residuals(model_f_tst)
@@ -244,6 +312,16 @@ puberty_male$tst_unconfounded <- residuals(model_m_tst)
 
 puberty_female$"id-wave" <- paste(puberty_female$id, puberty_female$wave, sep = "-")
 puberty_male$"id-wave" <- paste(puberty_male$id, puberty_male$wave, sep = "-")
+
+puberty_female <- puberty_female %>% 
+  rename("pds" = "pds_f",
+         "sex" = "sex.x") %>% 
+  select(-pds_m, -sex.y, -caffeine, -active, -start_time, -end_time, -freezer, -sample_collection_time, -midnight_to_start)
+
+puberty_male <- puberty_male %>% 
+  rename("pds" = "pds_m",
+         "sex" = "sex.x") %>% 
+  select(-pds_f, -sex.y, -caffeine, -active, -start_time, -end_time, -freezer, -sample_collection_time, -midnight_to_start)
 
 write.csv(puberty_female, file = "data/whole_abcd_puberty_female.csv")
 write.csv(puberty_male, file = "data/whole_abcd_puberty_male.csv")
@@ -256,14 +334,26 @@ write.csv(puberty_male, file = "data/whole_abcd_puberty_male.csv")
 # typically developing pxs --> anyone who scored less than 60 on the following subscales: affective problems, anxiety problems, somatic problems, ADHD, oppositional defiant problems, conduct problems 
 
 atypical <- cbcl %>% 
-  filter(cbcl_scr_dsm5_conduct_t > 60, cbcl_scr_dsm5_opposit_t > 60, cbcl_scr_dsm5_adhd_t > 60,  	cbcl_scr_dsm5_somaticpr_t > 60, cbcl_scr_dsm5_anxdisord_t > 60, cbcl_scr_dsm5_depress_t > 60) %>% 
-  rename("id" = "src_subject_id")
+  filter(!cbcl_scr_dsm5_conduct_t > 60, 
+         !cbcl_scr_dsm5_opposit_t > 60, 
+         !cbcl_scr_dsm5_adhd_t > 60,  	
+         !cbcl_scr_dsm5_somaticpr_t > 60, 
+         !cbcl_scr_dsm5_anxdisord_t > 60, 
+         !cbcl_scr_dsm5_depress_t > 60) %>% 
+  rename("id" = "src_subject_id",
+         "wave" = "eventname")
 
-typical_female <- anti_join(puberty_female, atypical, by = "id")
-typical_male <- anti_join(puberty_male, atypical, by = "id")
+typical_female <- anti_join(puberty_female, atypical, by = c("id", "wave"))
+typical_male <- anti_join(puberty_male, atypical, by = c("id", "wave"))
 
 write.csv(typical_female, file = paste0(root, "data/typical_female.csv"))
 write.csv(typical_male, file = paste0(root, "data/typical_male.csv"))
+
+atypical_female <- anti_join(puberty_female, typical_female, by = c("id", "wave"))
+atypical_male <- anti_join(puberty_male, typical_male, by = c("id", "wave"))
+
+write.csv(atypical_female, file = paste0(root, "data/atypical_female.csv"))
+write.csv(atypical_male, file = paste0(root, "data/atypical_male.csv"))
 
 ```
 

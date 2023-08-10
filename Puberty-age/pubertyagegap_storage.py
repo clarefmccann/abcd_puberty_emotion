@@ -40,8 +40,8 @@ def remove_regression_to_mean_effect(y, y_pred):
 
 # implemented the fitted model on whole sample with cross validation to calculate the puberty age gap
 for sex in sexes:
-    filename = '/Users/clare/Dropbox (University of Oregon)/mine/projects/flux_EmotionPuberty/data/whole_abcd_puberty_{}.csv'.format(sex)
-    dataname = 'pubertyabcd_{}'.format(sex)
+    filename = '/u/project/silvers/data/ABCD/cfm_flux_2023/puberty_age_gap/data/typical_{}.csv'.format(sex)
+    dataname = 'typical_{}'.format(sex)
     predictors = {
         "hormone_age": hormones[sex],
         "pds_age": pds[sex],
@@ -90,7 +90,7 @@ for sex in sexes:
         # load fitted model
         loaded_model = joblib.load(
             open(
-                '/Users/clare/Dropbox (University of Oregon)/mine/projects/flux_EmotionPuberty/output/final_{}_abcd_{}_model.pkl'.format(predictor, sex), 'rb'))
+                '/u/project/silvers/data/ABCD/cfm_flux_2023/puberty_age_gap/data/models/final_{}_abcd_{}_model.pkl'.format(predictor, sex), 'rb'))
 
         # Out of sample prediction using gam (new code)
         # An inner loop CV = 10
@@ -122,7 +122,7 @@ for sex in sexes:
 
 
         mycleandf_puberty.to_csv(
-            r'/Users/clare/Dropbox (University of Oregon)/mine/projects/flux_EmotionPuberty/data/mycleandf_{}_gap_abcd_{}.csv'.format(predictor, sex), index=True,
+            r'/u/project/silvers/data/ABCD/cfm_flux_2023/puberty_age_gap/data/mycleandf_{}_gap_abcd_{}.csv'.format(predictor, sex), index=True,
             header=True)
 
         mycleandf_puberty = mycleandf_puberty.set_index("id-wave")
@@ -130,7 +130,7 @@ for sex in sexes:
 
         # remove nan
         # print(mydfpuberty.columns)
-        nanmask = mycleandf_puberty[["pds", "age"]].isna().any(1)
+        nanmask = mycleandf_puberty[["pds", "age"]].isna().any(axis=1)
         mycleandf_puberty = mycleandf_puberty[~nanmask].copy()
 
         # make sure the features are all float
@@ -153,7 +153,7 @@ for sex in sexes:
         # mycleandf_puberty = mycleandf_puberty.set_index("id-wave")
 
         mycleandf_puberty.to_csv(
-            r'/Users/clare/Dropbox (University of Oregon)/mine/projects/flux_EmotionPuberty/data/mycleandf_pds_age_regressgap_without_{}.csv'.format(
+            r'/u/project/silvers/data/ABCD/cfm_flux_2023/puberty_age_gap/data/mycleandf_pds_age_regressgap_without_{}.csv'.format(
                 sex),
             index=True, header=True)
 
@@ -161,16 +161,16 @@ for sex in sexes:
 
 
 # plot
-formalnames = {
-    "pubertyage": "Combined puberty age",
-    "pds_age": "Physical puberty age",
-    "hormone_age": "Hormonal puberty age",
-    "pubertyage_abcd_gap_rtm": "Combined puberty age rtm",
-    "pds_age_abcd_gap_rtm": "Physical puberty age rtm",
-    "hormone_age_abcd_gap_rtm": "Hormonal puberty age rtm",
-    "male": "Males",
-    "female": "Females",
-}
+# formalnames = {
+#     "pubertyage": "Combined puberty age",
+#     "pds_age": "Physical puberty age",
+#     "hormone_age": "Hormonal puberty age",
+#     "pubertyage_abcd_gap_rtm": "Combined puberty age rtm",
+#     "pds_age_abcd_gap_rtm": "Physical puberty age rtm",
+#     "hormone_age_abcd_gap_rtm": "Hormonal puberty age rtm",
+#     "male": "Males",
+#     "female": "Females",
+# }
 #
 # for sex in sexes:
 #     for predictor in predictors:
@@ -251,41 +251,41 @@ formalnames = {
 
 
 ########
-for sex in sexes:
-    for predictor in predictors:
-        mycleandf_puberty = pd.read_csv(
-            '/Users/clare/Dropbox (University of Oregon)/mine/projects/flux_EmotionPuberty/data/mycleandf_{}_gap_abcd_{}.csv'.format(
-                predictor, sex))
+# for sex in sexes:
+#     for predictor in predictors:
+#         mycleandf_puberty = pd.read_csv(
+#             '/Users/clare/Dropbox (University of Oregon)/mine/projects/flux_EmotionPuberty/data/mycleandf_{}_gap_abcd_{}.csv'.format(
+#                 predictor, sex))
 
-        # plotcl
-        fig, ax = plt.subplots(figsize=(10,10))
-        sns.scatterplot(
-            data=mycleandf_puberty, x="age", y="{}_abcd_gap_rtm".format(predictor),
-            hue="{}_abcd_gap_rtm".format(predictor), legend=False,
-            hue_norm=mcolors.TwoSlopeNorm(vcenter=0, vmin=-.4, vmax=.4),
-            # cmap=cm.coolwarm,
-            # palette=sns.diverging_palette(240, 10, n=256)
-            palette='coolwarm',
-            ax=ax,
-            s=100,
-            alpha=0.6,
-            linewidth=0.1,
-        )
+#         # plotcl
+#         fig, ax = plt.subplots(figsize=(10,10))
+#         sns.scatterplot(
+#             data=mycleandf_puberty, x="age", y="{}_abcd_gap_rtm".format(predictor),
+#             hue="{}_abcd_gap_rtm".format(predictor), legend=False,
+#             hue_norm=mcolors.TwoSlopeNorm(vcenter=0, vmin=-.4, vmax=.4),
+#             # cmap=cm.coolwarm,
+#             # palette=sns.diverging_palette(240, 10, n=256)
+#             palette='coolwarm',
+#             ax=ax,
+#             s=100,
+#             alpha=0.6,
+#             linewidth=0.1,
+#         )
 
-        sns.regplot(data=mycleandf_puberty, x="age", y="{}_abcd_gap_rtm".format(predictor), scatter=False, color='#080326',
-                    ax=ax)
-        ax.set_title('{}'.format(formalnames[sex]), fontsize=30)
-        ax.set_ylabel('{} gap After RTM'.format(formalnames[predictor]), fontsize=30)
-        ax.set_xlabel('Chronological age', fontsize=30)
-        ax.set_xlim((8.8, 14.2))
-        ax.set_ylim((-2, 2))
-        ax.tick_params(axis='both', labelsize=20)
+#         sns.regplot(data=mycleandf_puberty, x="age", y="{}_abcd_gap_rtm".format(predictor), scatter=False, color='#080326',
+#                     ax=ax)
+#         ax.set_title('{}'.format(formalnames[sex]), fontsize=30)
+#         ax.set_ylabel('{} gap After RTM'.format(formalnames[predictor]), fontsize=30)
+#         ax.set_xlabel('Chronological age', fontsize=30)
+#         ax.set_xlim((8.8, 14.2))
+#         ax.set_ylim((-2, 2))
+#         ax.tick_params(axis='both', labelsize=20)
 
 
-        plt.savefig(
-            '/Users/clare/Dropbox (University of Oregon)/mine/projects/flux_EmotionPuberty/output'
-            '/{}_{}_plot.png'.format(predictor, sex),
-            dpi=800,
-        )
-        plt.show()
+#         plt.savefig(
+#             '/Users/clare/Dropbox (University of Oregon)/mine/projects/flux_EmotionPuberty/output'
+#             '/{}_{}_plot.png'.format(predictor, sex),
+#             dpi=800,
+#         )
+#         plt.show()
 
