@@ -14,12 +14,12 @@ sexes = ["female", "male"]
 # Make a dictionary from hormones for each sex
 hormones = {"female": ["tst", "dhea"], "male": ["tst","dhea"]}
 
-subsets = {"1", "2", "3", "4"}
+subsets = ["1", "2", "3", "4"]
 
 # Make a dictonary from each sub items of PDS for each sex
 pds = {
     "female": ['growth_spurt', "body_hair", 'skin_change', 'breast_develop', 'menarche'],
-    "male": ['growth_spurt', "body_hair", 'voice_deep', 'face_hair', 'skin_change',]
+    "male": ['growth_spurt', "body_hair", 'voice_deep', 'face_hair', 'skin_change']
 }
 
 # Define a function to remove regression to the mean effect
@@ -83,7 +83,7 @@ for sex in sexes:
 
             # load fitted model
             loaded_model = joblib.load(
-                open('/u/project/silvers/data/ABCD/cfm_flux_2023/puberty_age_gap/data/models/final_{}_abcd_{}_{}_model.pkl'.format(predictor, sex, subset), 'rb'))
+                open('/u/project/silvers/data/ABCD/cfm_flux_2023/puberty_age_gap/data/models/final_{}_abcd_{}_{}_model.sav'.format(predictor, sex, subset), 'rb'))
 
             # Out of sample prediction using gam
             kfold = GroupKFold(n_splits=10)

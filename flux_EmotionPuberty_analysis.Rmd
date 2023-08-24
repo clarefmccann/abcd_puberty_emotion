@@ -1,0 +1,749 @@
+---
+title: "emotion + puberty for flux 2023 analysis"
+author: "cfm"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    highlight: tango
+    theme: united
+    toc: yes
+    toc_float:
+      collapsed: yes
+      smooth_scroll: yes
+  pdf_document:
+    toc: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+### Setting up markdown {.tabset}
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = TRUE,
+	warning = TRUE
+)
+
+options(scipen=999)
+```
+
+### loading required packages
+
+```{r Load Required Packages, message=FALSE, warning=FALSE, include=FALSE}
+
+# load packages
+
+library(pacman)
+pacman::p_load(dplyr, ggseg, ggplot2, tidyr, lubridate, psych, lme4, data.table, lmerTest, car, openxlsx, stringr, install = TRUE)
+
+```
+
+# Setting root path 
+
+```{r root path}
+
+root = "/Users/clare/Dropbox (University of Oregon)/mine/projects/flux_EmotionPuberty/"
+
+```
+
+```{r data test}
+
+# Create a list of data frame names
+data_files <- c("male", "female")
+pub_types <- c("pds", "hormone", "puberty")
+num_files <- 6
+
+# Loop through the combinations
+for (sex in data_files) {
+  for (pub_type in pub_types) {
+    # Create an empty list to store data frames for joining
+    df_list <- list()
+    
+    for (i in 1:num_files) {
+      df_name <- paste0("puberty_", pub_type, "_", sex, i)
+      file_name <- paste0(root, "data/mycleandf_", pub_type, "_age_gap_abcd_", sex, "_", i, ".csv")
+      
+      # Read the CSV file
+      df <- read.csv(file_name) %>%
+        rename(
+          !!paste0(pub_type, "_age_rtm") := !!paste0(pub_type, "_age_", i, "_abcd_rtm"),
+          !!paste0(pub_type, "_age_gap_rtm") := !!paste0(pub_type, "_age_", i, "_abcd_gap_rtm")
+        ) %>%
+        select(id, wave, sex, site_id, family_id, BMI, age, !!paste0(pub_type, "_age_rtm"), !!paste0(pub_type, "_age_gap_rtm"))
+      
+      # Store the data frame in the list
+      df_list[[i]] <- df
+    }
+    
+    # Join the data frames for each sex and pub_type
+    joined_df_name <- paste0("puberty_", pub_type, "_", sex)
+    joined_df <- Reduce(full_join, df_list)
+    assign(joined_df_name, joined_df)
+    
+    # Remove individual data frames to clean up
+    rm(list = paste0("puberty_", pub_type, "_", sex, 1:num_files))
+    
+    # Rename the data frame for the "puberty" pub_type to "puberty_combined"
+    if (pub_type == "puberty") {
+      new_df_name <- paste0("puberty_combined_", sex)
+      current_df_name <- paste0("puberty_", pub_type, "_", sex)
+      assign(new_df_name, get(current_df_name))
+      rm(list = current_df_name)
+    }
+  }
+}
+
+puberty_male1 <- left_join(puberty_pds_male, puberty_combined_male, by = c("id", "wave"))
+puberty_male <- left_join(puberty_male1, puberty_hormone_male, by = c("id", "wave"))  %>% 
+  select(id, wave, sex.x, BMI.x, age.x, site_id.x, family_id.x, pds_age_rtm, pds_age_gap_rtm, hormone_age_rtm, hormone_age_gap_rtm, puberty_age_rtm, puberty_age_gap_rtm) %>% 
+  rename("sex" = "sex.x",
+         "bmi" = "BMI.x",
+         "age" = "age.x",
+         "site_id" = "site_id.x",
+         "family_id" = "family_id.x",
+         "combined_age_gap_rtm" = "puberty_age_gap_rtm",
+         "combined_age_rtm" = "puberty_age_rtm") %>% 
+  mutate(
+    site_id = substr(site_id, 5, nchar(site_id)))
+
+puberty_female1 <- left_join(puberty_pds_female, puberty_combined_female, by = c("id", "wave"))
+puberty_female <- left_join(puberty_female1, puberty_hormone_female, by = c("id", "wave"))  %>% 
+  select(id, wave, sex.x, BMI.x, age.x, site_id.x, family_id.x, pds_age_rtm, pds_age_gap_rtm, hormone_age_rtm, hormone_age_gap_rtm, puberty_age_rtm, puberty_age_gap_rtm) %>% 
+  rename("sex" = "sex.x",
+         "bmi" = "BMI.x",
+         "age" = "age.x",
+         "site_id" = "site_id.x",
+         "family_id" = "family_id.x",
+         "combined_age_gap_rtm" = "puberty_age_gap_rtm",
+         "combined_age_rtm" = "puberty_age_rtm") %>% 
+  mutate(
+    site_id = substr(site_id, 5, nchar(site_id)))
+
+rm(puberty_hormone_female, puberty_hormone_male, puberty_combined_female, puberty_combined_male, puberty_pds_female, puberty_pds_male, puberty_male1, puberty_female1, df, df_list, joined_df, joined_df_name, current_df_name, df_name, file_name, pub_type, pub_types, i, new_df_name, num_files, sex, data_files)
+
+```
+
+
+```{r loading in data}
+
+
+brain <- read.csv(paste0(root, "data/brain/mri_y_tfmr_nback_emovntf_aseg.csv")) %>% 
+  rename("id" = "src_subject_id",
+         "wave" = "eventname",
+         "l_amyg" = "tfmri_nback_all_194",
+         "r_amyg" = "tfmri_nback_all_208",
+         "l_caudate" = "tfmri_nback_all_187",
+         "r_caudate" = "tfmri_nback_all_204",
+         "l_thalamus" = "tfmri_nback_all_186",
+         "r_thalamus" = "tfmri_nback_all_203") %>% 
+  filter(!is.na(l_amyg),
+         !is.na(r_amyg),
+         !is.na(l_caudate),
+         !is.na(r_caudate)) %>% 
+  select(id, wave, l_amyg, r_amyg, l_caudate, r_caudate, l_thalamus, r_thalamus)
+
+cbcl <- read.csv(paste0(root, "data/mh_p_cbcl.csv")) %>% 
+  rename("id" = "src_subject_id",
+         "wave" = "eventname")
+
+cbcl_female <- left_join(puberty_female, cbcl, by = c("id", "wave")) %>% 
+  select(id, wave, cbcl_scr_syn_internal_t, cbcl_scr_dsm5_depress_t, cbcl_scr_dsm5_anxdisord_t, cbcl_scr_syn_social_t, cbcl_scr_07_stress_t, cbcl_scr_syn_totprob_t, bmi, sex, age, site_id, family_id, pds_age_rtm, pds_age_gap_rtm, hormone_age_rtm, hormone_age_gap_rtm, combined_age_rtm, combined_age_gap_rtm )
+
+cbcl_male <- left_join(puberty_male, cbcl, by = c("id", "wave")) %>% 
+  select(id, wave, cbcl_scr_syn_internal_t, cbcl_scr_dsm5_depress_t, cbcl_scr_dsm5_anxdisord_t, cbcl_scr_syn_social_t, cbcl_scr_07_stress_t, cbcl_scr_syn_totprob_t, bmi, sex, age, site_id, family_id, pds_age_rtm, pds_age_gap_rtm, hormone_age_rtm, hormone_age_gap_rtm, combined_age_rtm, combined_age_gap_rtm )
+
+brain_female <- left_join(puberty_female, brain, by = c("id", "wave")) %>% 
+  filter(!is.na(l_amyg))
+
+brain_male <- left_join(puberty_male, brain, by = c("id", "wave")) %>% 
+  filter(!is.na(l_amyg))
+
+rm(brain, cbcl, puberty_female, puberty_male)
+
+tracking <- read.csv(paste0(root, "data/abcd_y_lt.csv")) %>% 
+  select(src_subject_id, eventname, site_id_l, rel_family_id, interview_age) %>% 
+  rename("id" = "src_subject_id",
+         "wave" = "eventname",
+         "site_id" = "site_id_l",
+         "family_id" = "rel_family_id",
+         "age" = "interview_age") %>% 
+  group_by(id) %>%
+  mutate(site_id = ifelse(is.na(site_id), first(na.omit(site_id)), site_id)) %>% 
+  mutate(family_id = ifelse(is.na(family_id), first(na.omit(family_id)), family_id)) %>% 
+  filter(!is.na(site_id),
+         !is.na(family_id)) 
+
+tracking <- tracking %>% 
+  select(id, wave, age) %>% 
+  rename("age_months" = "age")
+
+brain_female <- left_join(brain_female, tracking, by = c("id", "wave")) 
+brain_male <- left_join(brain_male, tracking, by = c("id", "wave")) 
+
+str(brain_female)
+
+brain_female$site_id <- as.factor(brain_female$site_id)
+brain_male$site_id <- as.factor(brain_male$site_id)
+```
+
+
+
+```{r for flux}
+
+## randomly selecting one time point from each participant
+
+cross_brain_female <- brain_female %>%
+  group_by(id) %>%
+  sample_n(1) %>%
+  ungroup()
+
+cross_brain_male <- brain_male %>%
+  group_by(id) %>%
+  sample_n(1) %>%
+  ungroup()
+
+## randomly selecting one ID from each family ID
+
+cross_brain_female <- cross_brain_female %>%
+  group_by(family_id) %>%
+  sample_n(1) %>%
+  ungroup()
+
+cross_brain_male <- cross_brain_male %>%
+  group_by(family_id) %>%
+  sample_n(1) %>%
+  ungroup()
+
+cross_brain_female_scaled <- cross_brain_female %>% 
+  mutate(age_scaled = age_months)
+cross_brain_female_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")] <- scale(cross_brain_female_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")])
+
+cross_brain_male_scaled <- cross_brain_male %>% 
+  mutate(age_scaled = age_months)
+cross_brain_male_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")] <- scale(cross_brain_male_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")])
+
+## performing linear mixed effect models nested by site_id for each region and puberty model 
+
+# cross_brain_female <- read.csv(paste0(root, "data/dataset_female_flux.csv"))
+# cross_brain_male <- read.csv(paste0(root, "data/dataset_male_flux.csv"))
+
+
+# boxplot(cross_brain_female_scaled$l_amyg) # filter outliers over 5 
+# boxplot(cross_brain_female_scaled$r_amyg) # filter outliers over -5 and 5
+# boxplot(cross_brain_female_scaled$l_caudate) # filter outliers over -3 and 3 
+# boxplot(cross_brain_female_scaled$r_caudate) # filter outliers over -3 and 3 
+# boxplot(cross_brain_female_scaled$l_thalamus) # filter outliers over -3 and 3 
+# boxplot(cross_brain_female_scaled$r_thalamus) 
+# 
+# boxplot(cross_brain_male_scaled$l_amyg) # filter outliers over -5 and 5
+# boxplot(cross_brain_male_scaled$r_amyg) # filter outliers over -5 and 5
+# boxplot(cross_brain_male_scaled$l_caudate) # filter outliers over -3 and 3
+# boxplot(cross_brain_male_scaled$r_caudate) # filter outliers over -4 
+# boxplot(cross_brain_male_scaled$l_thalamus) # filter outliers over -3 and 3
+# boxplot(cross_brain_male_scaled$r_thalamus) # filter outliers over -3 and 4
+# 
+# boxplot(cross_brain_female_scaled$pds_age_gap_rtm)
+# boxplot(cross_brain_female_scaled$hormone_age_gap_rtm)
+# boxplot(cross_brain_female_scaled$combined_age_gap_rtm)
+# 
+# boxplot(cross_brain_male_scaled$pds_age_gap_rtm)
+# boxplot(cross_brain_male_scaled$hormone_age_gap_rtm)
+# boxplot(cross_brain_male_scaled$combined_age_gap_rtm)
+# 
+# ## checking normality 
+# 
+# hist(cross_brain_female$pds_age_gap_rtm)
+# hist(cross_brain_female$combined_age_gap_rtm)
+# hist(cross_brain_female$hormone_age_gap_rtm)
+# 
+# hist(cross_brain_male$pds_age_gap_rtm)
+# hist(cross_brain_male$combined_age_gap_rtm)
+# hist(cross_brain_male$hormone_age_gap_rtm)
+# 
+# ## filtering outliers 
+# 
+cross_brain_female_scaled <- cross_brain_female_scaled %>%
+  filter(!l_amyg < -5,
+         !l_amyg > 5,
+         !r_amyg < -5,
+         !r_amyg > 5,
+         !l_caudate < -3,
+         !l_caudate > 3,
+         !r_caudate < -3,
+         !r_caudate > 3,
+         !l_thalamus < -3,
+         !l_thalamus > 3,
+         !r_thalamus < -3,
+         !r_thalamus > 3)
+
+cross_brain_male_scaled <- cross_brain_male_scaled %>%
+  filter(!l_amyg < -5,
+         !l_amyg > 5,
+         !r_amyg < -5,
+         !r_amyg > 5,
+         !l_caudate < -3,
+         !l_caudate > 3,
+         !r_caudate < -4,
+         !l_thalamus < -3,
+         !l_thalamus > 3,
+         !r_thalamus < -3,
+         !r_thalamus > 4)
+
+library(car)
+
+datasets <- list(cross_brain_female_scaled, cross_brain_male_scaled)
+pubertys <- c("pds_age_gap_rtm", "hormone_age_gap_rtm", "combined_age_gap_rtm")
+regions <- c("l_amyg", "r_amyg", "l_caudate", "r_caudate", "l_thalamus", "r_thalamus")
+puberty_labels <- c("pds", "hormone", "combined")
+results <- list()
+summary_list <- list()
+diagnostics_list <- list()
+results_list <- list()
+
+for (i in seq_along(datasets)) {
+  for (j in seq_along(regions)) {
+    for (k in seq_along(pubertys)) {
+    dataset <- datasets[[i]]
+    region <- regions[j]
+    puberty <- pubertys[k]
+    puberty_label <- puberty_labels[k]
+    
+    # Fit the linear mixed effects model
+    
+    # just age 
+    
+    model_age <- lmer(get(region) ~ age_scaled + (1 | site_id), data = dataset)
+    result_name_age <- paste0("dataset", i, "_", region, "_", puberty_label, "_age")
+    results[[result_name_age]] <- list(summary(model_age))
+    
+    # age and puberty 
+    
+    model_age_pub <- lmer(get(region) ~ age_scaled + get(puberty) + (1 | site_id), data = dataset)
+    result_age_pub <- paste0("dataset", i, "_", region, "_", puberty_label, "_age_pub")
+    results[[result_age_pub]] <- list(summary(model_age_pub))
+    
+    
+   # age and puberty and interaction 
+    
+    model_interaction <- lmer(get(region) ~ age_scaled + get(puberty) + age_scaled*get(puberty) + (1 | site_id), data = dataset)
+    result_interaction <- paste0("dataset", i, "_", region, "_", puberty_label, "_interaction")
+    results[[result_interaction]] <- list(summary(model_interaction))
+    
+    
+    # # Model diagnostics for each model
+    #   cat("Model Diagnostics for", result_name_age, "\n")
+    #   plot(model_age)
+    #   qqnorm(resid(model_age))
+    #   qqline(resid(model_age))
+    #   cat("\n")
+    #   
+    #   cat("Model Diagnostics for", result_age_pub, "\n")
+    #   plot(model_age_pub)
+    #   qqnorm(resid(model_age_pub))
+    #   qqline(resid(model_age_pub))
+    #   vif_values_age_pub <- vif(model_age_pub)
+    #   print(vif_values_age_pub)
+    #   cat("\n")
+    #   
+    #   cat("Model Diagnostics for", result_interaction, "\n")
+    #   plot(model_interaction)
+    #   qqnorm(resid(model_interaction))
+    #   qqline(resid(model_interaction))
+    #   vif_values_interaction <- vif(model_interaction)
+    #   print(vif_values_interaction)
+    #   cat("\n")
+      
+      # Shorten or abbreviate the result names
+      result_name_age_short <- paste0("ds", i, "_", substr(region, 1, 6), "_", 
+                                      substr(puberty_label, 1, 3), "_age")
+      result_age_pub_short <- paste0("ds", i, "_", substr(region, 1, 6), "_", 
+                                     substr(puberty_label, 1, 3), "_age_pub")
+      result_interaction_short <- paste0("ds", i, "_", substr(region, 1, 6), "_", 
+                                         substr(puberty_label, 1, 3), "_int")
+      
+            # Extract p-values and coefficient estimates
+      p_age <- summary(model_age)$coefficients[2, "Pr(>|t|)"]
+      c_age <- summary(model_age)$coefficients[2, "Estimate"]
+      p_age_pub <- summary(model_age_pub)$coefficients[2, "Pr(>|t|)"]
+      c_age_pub <- summary(model_age_pub)$coefficients[2, "Estimate"]
+      p_pub <- summary(model_age_pub)$coefficients[3, "Pr(>|t|)"]
+      c_pub <- summary(model_age_pub)$coefficients[3, "Estimate"]
+      p_age_int <- summary(model_interaction)$coefficients[2, "Pr(>|t|)"]
+      c_age_int <- summary(model_interaction)$coefficients[2, "Estimate"]
+      p_pub_int <- summary(model_interaction)$coefficients[3, "Pr(>|t|)"]
+      c_pub_int <- summary(model_interaction)$coefficients[3, "Estimate"]
+      p_int <- summary(model_interaction)$coefficients[4, "Pr(>|t|)"]
+      c_int <- summary(model_interaction)$coefficients[4, "Estimate"]
+      
+      
+      result_entry <- list(
+        dataset = paste0("ds", i),
+        region = region,
+        puberty_label = puberty_label,
+        p_age = p_age,
+        c_age = c_age,
+        p_age_pub = p_age_pub,
+        c_age_pub = c_age_pub,
+        p_pub = p_pub,
+        c_pub = c_pub,
+        p_age_int = p_age_int,
+        c_age_int = c_age_int,
+        p_pub_int = p_pub_int,
+        c_pub_int = c_pub_int,
+        p_int = p_int,
+        c_int = c_int
+      )
+      
+      # Append the result to the list
+      results_list[[length(results_list) + 1]] <- result_entry
+      
+      # Store the summary results
+      summary_info_age <- list(
+        model_name = result_name_age_short,
+        summary = capture.output(summary(model_age))
+      )
+      summary_info_age_pub <- list(
+        model_name = result_age_pub_short,
+        summary = capture.output(summary(model_age_pub))
+      )
+      summary_info_interaction <- list(
+        model_name = result_interaction_short,
+        summary = capture.output(summary(model_interaction))
+      )
+      
+      summary_list[[result_name_age_short]] <- summary_info_age
+      summary_list[[result_age_pub_short]] <- summary_info_age_pub
+      summary_list[[result_interaction_short]] <- summary_info_interaction
+    }
+  }
+}
+
+summary_df <- data.frame(
+  model_name = unlist(lapply(summary_list, function(x) x$model_name)),
+  summary = unlist(lapply(summary_list, function(x) paste(x$summary, collapse = "\n"))),
+  stringsAsFactors = FALSE
+)
+
+results_df <- bind_rows(results_list)
+
+
+```
+
+```{r saving output}
+
+write.xlsx(summary_df, file = "weird_results/summary_results_14_un.xlsx")
+write.xlsx(results_df, file = "weird_results/results_14_un.xlsx")
+write.csv(cross_brain_female, file = "weird_results/dataset_female_14.csv")
+write.csv(cross_brain_male, file = "weird_results/dataset_male_14.csv")
+
+```
+
+```{r visualizations}
+
+boxplot(cross_brain_female$r_amyg)
+boxplot(cross_brain_female$l_amyg)
+boxplot(cross_brain_female$r_caudate)
+boxplot(cross_brain_female$l_caudate)
+boxplot(cross_brain_female$r_thalamus)
+boxplot(cross_brain_female$l_thalamus)
+
+boxplot(cross_brain_male$r_amyg)
+boxplot(cross_brain_male$l_amyg)
+boxplot(cross_brain_male$r_caudate)
+boxplot(cross_brain_male$l_caudate)
+boxplot(cross_brain_male$r_thalamus)
+boxplot(cross_brain_male$l_thalamus)
+
+### female
+
+model_r_amg_pds <- lmer(r_amyg ~ age + pds_age_gap_rtm + age*pds_age_gap_rtm + (1 | site_id), data = cross_brain_female)
+model_r_caud_pds <- lmer(r_caudate ~ age + pds_age_gap_rtm + age*pds_age_gap_rtm + (1 | site_id), data = cross_brain_female)
+
+## male 
+
+model_l_caud_pds <- lmer(l_caudate ~ age + pds_age_gap_rtm + age*pds_age_gap_rtm + (1 | site_id), data = cross_brain_male)
+model_l_caud_comb <- lmer(l_caudate ~ age + combined_age_gap_rtm + age*combined_age_gap_rtm + (1 | site_id), data = cross_brain_male)
+model_l_caud_hormone <- lmer(l_caudate ~ age + hormone_age_gap_rtm + age*hormone_age_gap_rtm + (1 | site_id), data = cross_brain_male)
+model_r_caud_hormone <- lmer(r_caudate ~ age + hormone_age_gap_rtm + age*hormone_age_gap_rtm + (1 | site_id), data = cross_brain_male)
+model_l_thalamus_hormone <- lmer(l_thalamus ~ age + hormone_age_gap_rtm + age*hormone_age_gap_rtm + (1 | site_id), data = cross_brain_male)
+
+## right amyg pds 
+
+plot_data_female <- cross_brain_female
+plot_data_male <- cross_brain_male
+
+## orange = f47842, blue = 335ab4, text = 294a96, font = muli 
+
+## FEMALES 
+
+## right amygdala (PDS)
+
+plot_data_female$predict_ramyg_pds <- predict(model_r_amg_pds, data = plot_data_female)
+
+## plot 
+
+plot_data_female <- plot_data_female %>% 
+  mutate(timing_pds = ifelse(pds_age_gap_rtm.y <= -.704981, "earlier",
+                         ifelse(pds_age_gap_rtm.y >= 0.661445, "later",
+                                ifelse(pds_age_gap_rtm.y > -.704981 & pds_age_gap_rtm.y < 0.661445, "average",
+                                       pds_age_gap_rtm.y))))
+
+
+boxplot(plot_data_female$predict_ramyg_pds)
+plot_data_female_ramyg <- plot_data_female %>% 
+  filter(predict_ramyg_pds > -0.05,
+         predict_ramyg_pds < 0.17)
+
+ramyg_int_plot_female <- plot_data_female_ramyg %>% 
+  ggplot(aes(x = age_months, y = predict_ramyg_pds, linetype = timing_pds)) +
+  geom_smooth(method = "lm", se = FALSE) +  # Regression lines first
+  geom_point(aes(color = pds_age_gap_rtm.y), alpha = 1) +  # Points next
+  labs(
+    x = "Age (months)",
+    y = "Predicted Right Amygdala Beta-weight",
+    color = "PDS Puberty Age Gap"
+  ) +
+  scale_color_gradient(low = "#335ab4", high = "#f47842") +
+  theme_minimal() +
+  theme(
+    legend.title = element_text(family = "Mulish"),
+    axis.title = element_text(family = "Mulish"),
+    text = element_text(color = "#294a96")
+  )
+
+print(ramyg_int_plot_female)
+
+ggsave(ramyg_int_plot_female, filename = paste0(root, "output/ramyg_int_plot_female.png"), width=5, height=5, units='in', dpi=300, bg = "transparent")
+
+
+# r caudate 
+
+plot_data_female$predict_rcaud_pds <- predict(model_r_caud_pds, data = plot_data_female)
+
+rcaudate_age_plot_female <- plot_data_female %>% 
+  ggplot(aes(x = age_months, y = predict_rcaud_pds)) +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_point(alpha = 0.1) +
+  labs(x = "Age (months)", y = "Predicted Left Caudate Beta-weight") +
+   theme_minimal() +
+   theme(
+        legend.title = element_text(family = "Mulish"),
+        axis.title = element_text(family = "Mulish"),
+        text = element_text(color = "#294a96"))
+
+rcaudate_int_plot_female <- rcaudate_age_plot_female +
+  geom_point(aes(color = pds_age_gap_rtm.y), alpha = 1) +
+  labs(color = "PDS Puberty Age Gap") +
+  scale_color_gradient(low =  "#335ab4", high = "#f47842")
+
+print(rcaudate_int_plot_female)
+
+ggsave(rcaudate_int_plot_female, filename = paste0(root, "output/rcaudate_int_plot_female.png"), width=5, height=5, units='in', dpi=300, bg = "transparent")
+
+
+## MALES 
+
+
+# r caudate 
+
+plot_data$predict_rcaud_pds <- predict(model_r_caud_pds, data = plot_data)
+
+rcaudate_age_plot <- plot_data %>% 
+  ggplot(aes(x = age_years, y = predict_rcaud_pds)) +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_point(alpha = 0.1) +
+  labs(x = "Age (Years)", y = "Predicted Right Caudate Beta-weight") +
+   theme_minimal() +
+   theme(
+        legend.title = element_text(family = "Mulish"),
+        axis.title = element_text(family = "Mulish"),
+        text = element_text(color = "#294a96"))
+
+rcaudate_int_plot <- rcaudate_age_plot +
+  geom_point(aes(color = pds_age_gap_rtm), alpha = 1) +
+  labs(color = "PDS Puberty Age Gap") +
+  scale_color_gradient(low =  "#335ab4", high = "#f47842")
+
+print(rcaudate_int_plot)
+
+ggsave(rcaudate_int_plot, filename = paste0(root, "output/rcaudate_int_plot.png"), width=5, height=5, units='in', dpi=300, bg = "transparent")
+
+# r amyg combined
+
+amyg_plot_data <- amyg_plot_data %>% 
+  mutate(timing_comb = ifelse(combined_age_gap_rtm <= -.329115, "earlier",
+                         ifelse(combined_age_gap_rtm >= 0.326121, "later",
+                                ifelse(combined_age_gap_rtm < -.329115 & pds_age_gap_rtm > 0.326121, "average",
+                                       combined_age_gap_rtm))))
+
+
+amyg_plot_data$predict_ramyg_comb <- predict(model_r_amg_comb, data = amyg_plot_data)
+
+ramyg_age_comb_plot <- amyg_plot_data %>% 
+  ggplot(aes(x = age_years, y = predict_ramyg_comb)) +
+  geom_smooth(method = "lm", se = FALSE) +
+  geom_point(alpha = 0.1) +
+  labs(x = "Age (years)", y = "Predicted Right Amygdala Beta-weight") +
+   theme_minimal() +
+   theme(
+        legend.title = element_text(family = "Mulish"),
+        axis.title = element_text(family = "Mulish"),
+        text = element_text(color = "#294a96"))
+
+ramyg_int_comb_plot <- ramyg_age_comb_plot +
+  geom_point(aes(color = combined_age_gap_rtm), alpha = 1) +
+  labs(color = "Comb. Puberty Age Gap") +
+  scale_color_gradient(low =  "#335ab4", high = "#f47842")
+
+print(ramyg_int_comb_plot)
+
+ggsave(ramyg_int_comb_plot, filename = paste0(root, "output/ramyg_int_comb_plot.png"), width=5, height=5, units='in', dpi=300, bg = "transparent")
+
+
+### BRAInS 
+
+## need to detach psych package for ggseg visualization to work, don't know why lol 
+
+detach("package:psych")
+
+
+brain_model_data = data.frame(
+  region = c("lh_caudate", "rh_amygdala", "rh_amygdala"), 
+  p = c( , ,0.0438),
+  stringsAsFactors = FALSE)
+
+```
+
+```{r longitudinal brain analyses}
+
+# brain_female_scaled <- brain_female 
+# brain_female_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm")] <- scale(brain_female_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm")])
+# 
+# brain_female_scaled$id <- as.numeric(factor(brain_female_scaled$id))
+# brain_female_scaled$site_id <- as.numeric(factor(brain_female_scaled$site_id))
+# 
+# brain_female_scaled <- brain_female_scaled %>% 
+#   pivot_longer(cols = 14:17, names_to = "regionname", values_to = "beta_weight")
+# 
+# 
+# ## loop 
+# 
+# library(mgcv)
+# ROI <- c("l_amyg", "r_amyg", "l_caudate", "r_caudate")
+# 
+# all_pds_models <- lapply(X = 1:length(ROI),
+#                       FUN = function(X){
+#                         data <- brain_female_scaled %>%
+#                           filter(regionname == ROI[X])
+#                         regionname = as.character(ROI[X])
+#                         
+#                         ## GAMM approach
+#                         
+#                         assign(paste0("gammmod_ageonly_", regionname),
+#                                gamm(beta_weight ~ s(age, bs = "cs", k = 4),
+#                                     random = list(id = ~1, site_id = ~1),
+#                                     data = (data)))
+#                         
+#                         assign(paste0("gammmod_pds_", regionname),
+#                                gamm(beta_weight ~ pds_age_gap_rtm + s(age,bs = "cs", k = 4),
+#                                     random = list(id = ~1, site_id = ~1),
+#                                     data = (data)))
+#                         
+#                         
+#                         assign(paste0("gammmod_pds_age_int_", regionname),
+#                                gamm(beta_weight ~ pds_age_gap_rtm + s(age,bs = "cs", k = 4),
+#                                     random = list(id = ~1, site_id = ~1),
+#                                     data = (data)))
+#         
+#                         modcomparetiming = anova(get(paste0("gammmod_ageonly_", regionname))$lme, get(paste0("gammmod_pds_",regionname))$lme, get(paste0("gammmod_pds_age_int_", regionname))$lme)
+#                         
+#                         modcomparetempo = anova(get(paste0("gammmod_ageonly_", regionname))$lme, get(paste0("gammmod_maintempo_",regionname))$lme)
+#                         
+#                         print(regionname)
+#                         
+#                         GAMMLRpdspval = modcomparetiming$`p-value`[2]
+#                         
+#                         GAMMLRpdsageintpval = modcomparetempo$`p-value`[2]
+#                         
+#                         GAMMpds_fixedcoef = round(summary(get(paste0("gammmod_pds_", regionname))$lme)[["coefficients"]][["fixed"]][["Xpds_age_gap_rtm"]], digits = 3)
+#                         
+#                         GAMMpdsage_fixedcoef = round(summary(get(paste0("gammmod_pds_age_int_", regionname))$lme)[["coefficients"]][["fixed"]][["Xpds_age_gap_rtm,age"]], digits = 3)
+#                         
+#                         ### LME approach
+#                         
+#                         LME_just_age<- lmer(beta_weight ~ age + (1 | id) + (1 | site_id),
+#                                                  data = (data %>% filter(!is.na(age),
+#                                                                              !is.na(pds_age_gap_rtm))),
+#                                                  REML = FALSE)
+#                         
+#                         LME_pds <- lmer(beta_weight ~ age + pds_age_gap_rtm + (1 | id) + (1 | site_id),
+#                                                       data = (data %>% filter(!is.na(age),
+#                                                                              !is.na(pds_age_gap_rtm))), 
+#                                                       REML = FALSE)
+#                         
+#                         LME_int_pdsage <- lmer(beta_weight ~ age + pds_age_gap_rtm + age*pds_age_gap_rtm + (1 | id) + (1 | site_id),
+#                                                       data = (data %>% filter(!is.na(age),
+#                                                                              !is.na(pds_age_gap_rtm))), 
+#                                                       REML = FALSE)
+#                         
+#                         comparepdsLME <- anova(LME_just_age, LME_pds, LME_int_pdsage)
+#                 
+#                         LMELRpdspvalmain = comparepdsLME$`Pr(>Chisq)`[2]
+#                         
+#                         LMELRpdsagepvalint = comparepdsLME$`Pr(>Chisq)`[3]
+#                         
+#                         LME_pds_coef = round(summary(LME_pds)[["coefficients"]][3], digits = 3)
+#                         
+#                         LME_pdsage_intcoef = round(summary(LME_int_pdsage)[["coefficients"]][4], digits = 3)
+#                         
+#                         
+#                         cbind(regionname,
+#                               GAMMLRpdspval,
+#                               GAMMLRpdsageintpval,
+#                               GAMMpds_fixedcoef,
+#                               GAMMpdsage_fixedcoef,
+#                               LMELRpdspvalmain,
+#                               LMELRpdsagepvalint,
+#                               LME_pds_coef,
+#                               LME_pdsage_intcoef
+# )
+#                         
+#                       })
+
+```
+
+
+```{r cbcl}
+
+# ## females 
+# 
+# dep_female_pds <- lmer(cbcl_scr_dsm5_depress_t ~ pds_age_gap_rtm + age + pds_age_gap_rtm*age + (1 | id) + (1 | wave) + (1 | site_id), data = cbcl_female)
+# 
+# summary(dep_female_pds)
+# 
+# dep_female_combined <- lmer(cbcl_scr_dsm5_depress_t ~ combined_age_gap_rtm + age + combined_age_gap_rtm*age + (1 | id) + (1 | wave) + (1 | site_id), data = cbcl_female)
+# 
+# summary(dep_female_combined)
+# 
+# dep_female_hormone <- lmer(cbcl_scr_dsm5_depress_t ~ hormone_age_gap_rtm + age + hormone_age_gap_rtm*age + (1 | id) + (1 | wave) + (1 | site_id), data = cbcl_female)
+# 
+# summary(dep_female_hormone)
+# 
+# 
+# anx_female_pds <- lmer(cbcl_scr_dsm5_anxdisord_t ~ pds_age_gap_rtm + age + pds_age_gap_rtm*age + (1 | id) + (1 | wave) + (1 | site_id), data = cbcl_female)
+# 
+# summary(anx_female_pds)
+# 
+# anx_female_combined <- lmer(cbcl_scr_dsm5_anxdisord_t ~ combined_age_gap_rtm + age + combined_age_gap_rtm*age + (1 | id) + (1 | wave) + (1 | site_id), data = cbcl_female)
+# 
+# summary(anx_female_combined)
+# 
+# anx_female_hormone <- lmer(cbcl_scr_dsm5_anxdisord_t ~ hormone_age_gap_rtm + age + hormone_age_gap_rtm*age + (1 | id) + (1 | wave) + (1 | site_id), data = cbcl_female)
+# 
+# summary(anx_female_hormone)
+
+
+```
