@@ -189,41 +189,39 @@ brain_female$site_id <- as.factor(brain_female$site_id)
 brain_male$site_id <- as.factor(brain_male$site_id)
 ```
 
-
-
 ```{r for flux}
 
-## randomly selecting one time point from each participant
-
-cross_brain_female <- brain_female %>%
-  group_by(id) %>%
-  sample_n(1) %>%
-  ungroup()
-
-cross_brain_male <- brain_male %>%
-  group_by(id) %>%
-  sample_n(1) %>%
-  ungroup()
-
-## randomly selecting one ID from each family ID
-
-cross_brain_female <- cross_brain_female %>%
-  group_by(family_id) %>%
-  sample_n(1) %>%
-  ungroup()
-
-cross_brain_male <- cross_brain_male %>%
-  group_by(family_id) %>%
-  sample_n(1) %>%
-  ungroup()
-
-cross_brain_female_scaled <- cross_brain_female %>% 
-  mutate(age_scaled = age_months)
-cross_brain_female_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")] <- scale(cross_brain_female_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")])
-
-cross_brain_male_scaled <- cross_brain_male %>% 
-  mutate(age_scaled = age_months)
-cross_brain_male_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")] <- scale(cross_brain_male_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")])
+# ## randomly selecting one time point from each participant
+# 
+# cross_brain_female <- brain_female %>%
+#   group_by(id) %>%
+#   sample_n(1) %>%
+#   ungroup()
+# 
+# cross_brain_male <- brain_male %>%
+#   group_by(id) %>%
+#   sample_n(1) %>%
+#   ungroup()
+# 
+# ## randomly selecting one ID from each family ID
+# 
+# cross_brain_female <- cross_brain_female %>%
+#   group_by(family_id) %>%
+#   sample_n(1) %>%
+#   ungroup()
+# 
+# cross_brain_male <- cross_brain_male %>%
+#   group_by(family_id) %>%
+#   sample_n(1) %>%
+#   ungroup()
+# 
+# cross_brain_female_scaled <- cross_brain_female %>% 
+#   mutate(age_scaled = age_months)
+# cross_brain_female_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")] <- scale(cross_brain_female_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")])
+# 
+# cross_brain_male_scaled <- cross_brain_male %>% 
+#   mutate(age_scaled = age_months)
+# cross_brain_male_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")] <- scale(cross_brain_male_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")])
 
 ## performing linear mixed effect models nested by site_id for each region and puberty model 
 
@@ -265,6 +263,7 @@ cross_brain_male_scaled[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_
 # 
 # ## filtering outliers 
 # 
+
 cross_brain_female_scaled <- cross_brain_female_scaled %>%
   filter(!l_amyg < -5,
          !l_amyg > 5,
@@ -434,174 +433,245 @@ results_df <- bind_rows(results_list)
 
 ```{r saving output}
 
-write.xlsx(summary_df, file = "weird_results/summary_results_14_un.xlsx")
-write.xlsx(results_df, file = "weird_results/results_14_un.xlsx")
-write.csv(cross_brain_female, file = "weird_results/dataset_female_14.csv")
-write.csv(cross_brain_male, file = "weird_results/dataset_male_14.csv")
+write.xlsx(summary_df, file = "output/summary_results_flux.xlsx")
+write.xlsx(results_df, file = "output/results_flux.xlsx")
+write.csv(cross_brain_female, file = "data/dataset_female_flux.csv")
+write.csv(cross_brain_male, file = "data/dataset_male_flux.csv")
 
 ```
 
 ```{r visualizations}
 
-boxplot(cross_brain_female$r_amyg)
-boxplot(cross_brain_female$l_amyg)
-boxplot(cross_brain_female$r_caudate)
-boxplot(cross_brain_female$l_caudate)
-boxplot(cross_brain_female$r_thalamus)
-boxplot(cross_brain_female$l_thalamus)
+## loading in final dataset 
 
-boxplot(cross_brain_male$r_amyg)
-boxplot(cross_brain_male$l_amyg)
-boxplot(cross_brain_male$r_caudate)
-boxplot(cross_brain_male$l_caudate)
-boxplot(cross_brain_male$r_thalamus)
-boxplot(cross_brain_male$l_thalamus)
+cross_brain_female <- read.csv(paste0(root, "data/dataset_female_flux.csv"))
+cross_brain_male <- read.csv(paste0(root, "data/dataset_male_flux.csv"))
 
+cross_brain_female <- cross_brain_female %>%
+  mutate(age_scaled = age_months)
+cross_brain_female[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")] <- scale(cross_brain_female[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")])
+
+cross_brain_male <- cross_brain_male %>%
+  mutate(age_scaled = age_months)
+cross_brain_male[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")] <- scale(cross_brain_male[, c("pds_age_gap_rtm", "combined_age_gap_rtm", "hormone_age_gap_rtm", "age_scaled")])
+
+
+## puberty main effect: l amyg (males / combined + hormone), 
+## int effect: r amyg (females / pds + combined), r caudate (females / pds), l caudate (males / hormone + combined), r caudate (males / hormone), r thalamus (females / pds)
+
+library(MuMIn)
 ### female
 
-model_r_amg_pds <- lmer(r_amyg ~ age + pds_age_gap_rtm + age*pds_age_gap_rtm + (1 | site_id), data = cross_brain_female)
-model_r_caud_pds <- lmer(r_caudate ~ age + pds_age_gap_rtm + age*pds_age_gap_rtm + (1 | site_id), data = cross_brain_female)
+## right amygdala females 
+model_r_amyg_pds_f <- lmer(r_amyg ~ age_scaled + pds_age_gap_rtm + age_scaled*pds_age_gap_rtm + (1 | site_id), data = cross_brain_female)
+model_r_amyg_comb_f <- lmer(r_amyg ~ age_scaled + pds_age_gap_rtm + age_scaled*pds_age_gap_rtm + (1 | site_id), data = cross_brain_female)
 
-## male 
+## compare r squared 
+summary(model_r_amyg_pds_f)
+summary(model_r_amyg_comb_f)
 
-model_l_caud_pds <- lmer(l_caudate ~ age + pds_age_gap_rtm + age*pds_age_gap_rtm + (1 | site_id), data = cross_brain_male)
-model_l_caud_comb <- lmer(l_caudate ~ age + combined_age_gap_rtm + age*combined_age_gap_rtm + (1 | site_id), data = cross_brain_male)
-model_l_caud_hormone <- lmer(l_caudate ~ age + hormone_age_gap_rtm + age*hormone_age_gap_rtm + (1 | site_id), data = cross_brain_male)
-model_r_caud_hormone <- lmer(r_caudate ~ age + hormone_age_gap_rtm + age*hormone_age_gap_rtm + (1 | site_id), data = cross_brain_male)
-model_l_thalamus_hormone <- lmer(l_thalamus ~ age + hormone_age_gap_rtm + age*hormone_age_gap_rtm + (1 | site_id), data = cross_brain_male)
+## compare r squared 
+r_squared_m1 <- r.squaredGLMM(model_r_amyg_pds_f)
+r_squared_m2 <- r.squaredGLMM(model_r_amyg_comb_f)
+print(r_squared_m1)
+print(r_squared_m2)
 
-## right amyg pds 
+## right caudate females 
+model_r_caud_pds_f <- lmer(r_caudate ~ age_scaled + pds_age_gap_rtm + age_scaled*pds_age_gap_rtm + (1 | site_id), data = cross_brain_female)
+
+summary(model_r_caud_pds_f)
+
+
+## right thalamus females 
+model_r_thalamus_pds_f <- lmer(r_thalamus ~ age_scaled + pds_age_gap_rtm + age_scaled*pds_age_gap_rtm + (1 | site_id), data = cross_brain_female)
+
+summary(model_r_thalamus_pds_f)
+
+## males  
+
+model_l_amyg_hormones_m <- lmer(l_amyg ~ age_scaled + hormone_age_gap_rtm + age_scaled*hormone_age_gap_rtm + (1 | site_id), data = cross_brain_male)
+model_l_amyg_comb_m <- lmer(l_amyg ~ age_scaled + combined_age_gap_rtm + age_scaled*combined_age_gap_rtm + (1 | site_id), data = cross_brain_male)
+
+
+summary(model_l_amyg_hormones_m)
+summary(model_l_amyg_comb_m)
+
+## compare r squared 
+r_squared_m1 <- r.squaredGLMM(model_l_amyg_hormones_m)
+r_squared_m2 <- r.squaredGLMM(model_l_amyg_comb_m)
+print(r_squared_m1)
+print(r_squared_m2) ## combined !! 
+
+## left caudate 
+
+model_l_caud_hormones_m <- lmer(l_caudate ~ age_scaled + hormone_age_gap_rtm + age_scaled*hormone_age_gap_rtm + (1 | site_id), data = cross_brain_male)
+model_l_caud_comb_m <- lmer(l_caudate ~ age_scaled + combined_age_gap_rtm + age_scaled*combined_age_gap_rtm + (1 | site_id), data = cross_brain_male)
+
+## compare r squared
+
+summary(model_l_caud_hormones_m)
+summary(model_l_caud_comb_m)
+
+## compare r squared 
+r_squared_m1 <- r.squaredGLMM(model_l_caud_hormones_m)
+r_squared_m2 <- r.squaredGLMM(model_l_caud_comb_m)
+print(r_squared_m1)
+print(r_squared_m2) ## combined !!
+
+## right caudate 
+model_r_caud_hormone_m <- lmer(r_caudate ~ age_scaled + hormone_age_gap_rtm + age_scaled*hormone_age_gap_rtm + (1 | site_id), data = cross_brain_male)
+
+summary(model_r_caud_hormone_m)
 
 plot_data_female <- cross_brain_female
 plot_data_male <- cross_brain_male
+```
+
+```{r female plots}
 
 ## orange = f47842, blue = 335ab4, text = 294a96, font = muli 
 
-## FEMALES 
+plot_data_female <- read.csv(paste0(root, "data/dataset_female_flux.csv")) 
+plot_data_male <- read.csv(paste0(root, "data/dataset_male_flux.csv"))
 
-## right amygdala (PDS)
+plot_data_female <- plot_data_female %>%
+  mutate(age_scaled = age_months)
+plot_data_female[,"age_scaled"] <- scale(plot_data_female[,"age_scaled"])
 
-plot_data_female$predict_ramyg_pds <- predict(model_r_amg_pds, data = plot_data_female)
+plot_data_male <- plot_data_male %>%
+  mutate(age_scaled = age_months)
+plot_data_male[,"age_scaled"] <- scale(plot_data_male[,"age_scaled"])
 
-## plot 
+## females 
+
+## creating variable for regression lines 
+
+summary(plot_data_female$pds_age_gap_rtm) # -0.32623, 0.34440
 
 plot_data_female <- plot_data_female %>% 
-  mutate(timing_pds = ifelse(pds_age_gap_rtm.y <= -.704981, "earlier",
-                         ifelse(pds_age_gap_rtm.y >= 0.661445, "later",
-                                ifelse(pds_age_gap_rtm.y > -.704981 & pds_age_gap_rtm.y < 0.661445, "average",
-                                       pds_age_gap_rtm.y))))
+  mutate(timing_pds = ifelse(pds_age_gap_rtm <= -0.32623, "earlier",
+                         ifelse(pds_age_gap_rtm >= 0.34440, "later",
+                                ifelse(pds_age_gap_rtm > -0.32623 & pds_age_gap_rtm < 0.34440, "average",
+                                       pds_age_gap_rtm))))
 
+summary(plot_data_female$combined_age_gap_rtm) # -0.32721, 0.33668
 
-boxplot(plot_data_female$predict_ramyg_pds)
-plot_data_female_ramyg <- plot_data_female %>% 
-  filter(predict_ramyg_pds > -0.05,
-         predict_ramyg_pds < 0.17)
+plot_data_female <- plot_data_female %>% 
+  mutate(timing_combined = ifelse(combined_age_gap_rtm <= -0.32721, "earlier",
+                         ifelse(combined_age_gap_rtm >= 0.33668, "later",
+                                ifelse(combined_age_gap_rtm > -0.32721 & combined_age_gap_rtm < 0.33668, "average",
+                                       combined_age_gap_rtm)))) 
 
-ramyg_int_plot_female <- plot_data_female_ramyg %>% 
-  ggplot(aes(x = age_months, y = predict_ramyg_pds, linetype = timing_pds)) +
-  geom_smooth(method = "lm", se = FALSE) +  # Regression lines first
-  geom_point(aes(color = pds_age_gap_rtm.y), alpha = 1) +  # Points next
-  labs(
-    x = "Age (months)",
-    y = "Predicted Right Amygdala Beta-weight",
-    color = "PDS Puberty Age Gap"
-  ) +
-  scale_color_gradient(low = "#335ab4", high = "#f47842") +
-  theme_minimal() +
-  theme(
-    legend.title = element_text(family = "Mulish"),
-    axis.title = element_text(family = "Mulish"),
-    text = element_text(color = "#294a96")
+plot_data_female$timing_combined <- as.factor(plot_data_female$timing_combined)
+plot_data_female$timing_pds <- as.factor(plot_data_female$timing_pds)
+
+## for loop for females 
+
+# List of models and corresponding labels
+models <- c("r_amyg_comb_f", "r_caud_pds_f", "r_thalamus_pds_f")
+ys <- c("Right Amygdala", "Right Caudate", "Right Thalamus")
+timings <- c("combined", "pds", "pds")
+labels <- c("Comb", "PDS", "PDS")
+
+# Loop through each model and create plots
+for (i in seq_along(models)) {
+  model_name <- models[i]
+  y_label <- ys[i]
+  timing_var <- timings[i]
+  label_gap <- labels[i]
+  
+# Make predictions
+  model <- get(paste0("model_", model_name))
+  prediction_column <- paste0("predict_", model_name)
+  plot_data_female[[prediction_column]] <- predict(model, newdata = plot_data_female)
+  
+  # Create the plot
+  plot <- plot_data_female %>%
+    ggplot(aes(x = age_months, y = !!sym(prediction_column))) +
+    geom_point(aes(color = as.numeric(.data[[paste0(timing_var, "_age_gap_rtm")]])), alpha = 1) +
+    labs(
+      x = "Age (months)",
+      y = paste("Predicted", y_label, "Beta-weight"),
+      color = paste(label_gap, "Puberty Age Gap"
+    )) +
+    scale_color_gradient(low = "#335ab4", high = "#f47842") +
+    theme_minimal() +
+    theme(
+      legend.title = element_text(family = "Mulish"),
+      axis.title = element_text(family = "Mulish"),
+      text = element_text(color = "#294a96")
+    )
+  
+  print(plot)
+  
+  ggsave(
+    plot,
+    filename = paste0(root, "output/", tolower(model_name), "_plot_female.png"),
+    width = 5,
+    height = 5,
+    units = 'in',
+    dpi = 300,
+    bg = "transparent"
   )
+}
 
-print(ramyg_int_plot_female)
+```
 
-ggsave(ramyg_int_plot_female, filename = paste0(root, "output/ramyg_int_plot_female.png"), width=5, height=5, units='in', dpi=300, bg = "transparent")
-
-
-# r caudate 
-
-plot_data_female$predict_rcaud_pds <- predict(model_r_caud_pds, data = plot_data_female)
-
-rcaudate_age_plot_female <- plot_data_female %>% 
-  ggplot(aes(x = age_months, y = predict_rcaud_pds)) +
-  geom_smooth(method = "lm", se = FALSE) +
-  geom_point(alpha = 0.1) +
-  labs(x = "Age (months)", y = "Predicted Left Caudate Beta-weight") +
-   theme_minimal() +
-   theme(
-        legend.title = element_text(family = "Mulish"),
-        axis.title = element_text(family = "Mulish"),
-        text = element_text(color = "#294a96"))
-
-rcaudate_int_plot_female <- rcaudate_age_plot_female +
-  geom_point(aes(color = pds_age_gap_rtm.y), alpha = 1) +
-  labs(color = "PDS Puberty Age Gap") +
-  scale_color_gradient(low =  "#335ab4", high = "#f47842")
-
-print(rcaudate_int_plot_female)
-
-ggsave(rcaudate_int_plot_female, filename = paste0(root, "output/rcaudate_int_plot_female.png"), width=5, height=5, units='in', dpi=300, bg = "transparent")
+```{r male plots}
 
 
-## MALES 
+# List of models and corresponding labels
+models <- c("l_amyg_comb_m", "l_caud_comb_m", "r_caud_hormone_m")
+ys <- c("Left Amygdala", "Left Caudate", "Right Caudate")
+timings <- c("combined", "combined", "hormone")
+labels <- c("Comb", "Comb", "Horm")
+
+# Loop through each model and create plots
+for (i in seq_along(models)) {
+  model_name <- models[i]
+  y_label <- ys[i]
+  timing_var <- timings[i]
+  label_gap <- labels[i]
+  
+  # Make predictions
+  model <- get(paste0("model_", model_name))
+  prediction_column <- paste0("predict_", model_name)
+  plot_data_male[[prediction_column]] <- predict(model, newdata = plot_data_male)
+  
+  # Create the plot
+  plot <- plot_data_male %>%
+    ggplot(aes(x = age_months, y = !!sym(prediction_column))) +
+    geom_point(aes(color = as.numeric(.data[[paste0(timing_var, "_age_gap_rtm")]])), alpha = 1) +
+    labs(
+      x = "Age (months)",
+      y = paste("Predicted", y_label, "Beta-weight"),
+      color = paste(label_gap, "Puberty Age Gap"
+    )) +
+    scale_color_gradient(low = "#335ab4", high = "#f47842") +
+    theme_minimal() +
+    theme(
+      legend.title = element_text(family = "Mulish"),
+      axis.title = element_text(family = "Mulish"),
+      text = element_text(color = "#294a96")
+    )
+  
+  print(plot)
+  
+  ggsave(
+    plot,
+    filename = paste0(root, "output/", tolower(model_name), "_plot_male.png"),
+    width = 5,
+    height = 5,
+    units = 'in',
+    dpi = 300,
+    bg = "transparent"
+  )
+}
 
 
-# r caudate 
+```
 
-plot_data$predict_rcaud_pds <- predict(model_r_caud_pds, data = plot_data)
-
-rcaudate_age_plot <- plot_data %>% 
-  ggplot(aes(x = age_years, y = predict_rcaud_pds)) +
-  geom_smooth(method = "lm", se = FALSE) +
-  geom_point(alpha = 0.1) +
-  labs(x = "Age (Years)", y = "Predicted Right Caudate Beta-weight") +
-   theme_minimal() +
-   theme(
-        legend.title = element_text(family = "Mulish"),
-        axis.title = element_text(family = "Mulish"),
-        text = element_text(color = "#294a96"))
-
-rcaudate_int_plot <- rcaudate_age_plot +
-  geom_point(aes(color = pds_age_gap_rtm), alpha = 1) +
-  labs(color = "PDS Puberty Age Gap") +
-  scale_color_gradient(low =  "#335ab4", high = "#f47842")
-
-print(rcaudate_int_plot)
-
-ggsave(rcaudate_int_plot, filename = paste0(root, "output/rcaudate_int_plot.png"), width=5, height=5, units='in', dpi=300, bg = "transparent")
-
-# r amyg combined
-
-amyg_plot_data <- amyg_plot_data %>% 
-  mutate(timing_comb = ifelse(combined_age_gap_rtm <= -.329115, "earlier",
-                         ifelse(combined_age_gap_rtm >= 0.326121, "later",
-                                ifelse(combined_age_gap_rtm < -.329115 & pds_age_gap_rtm > 0.326121, "average",
-                                       combined_age_gap_rtm))))
-
-
-amyg_plot_data$predict_ramyg_comb <- predict(model_r_amg_comb, data = amyg_plot_data)
-
-ramyg_age_comb_plot <- amyg_plot_data %>% 
-  ggplot(aes(x = age_years, y = predict_ramyg_comb)) +
-  geom_smooth(method = "lm", se = FALSE) +
-  geom_point(alpha = 0.1) +
-  labs(x = "Age (years)", y = "Predicted Right Amygdala Beta-weight") +
-   theme_minimal() +
-   theme(
-        legend.title = element_text(family = "Mulish"),
-        axis.title = element_text(family = "Mulish"),
-        text = element_text(color = "#294a96"))
-
-ramyg_int_comb_plot <- ramyg_age_comb_plot +
-  geom_point(aes(color = combined_age_gap_rtm), alpha = 1) +
-  labs(color = "Comb. Puberty Age Gap") +
-  scale_color_gradient(low =  "#335ab4", high = "#f47842")
-
-print(ramyg_int_comb_plot)
-
-ggsave(ramyg_int_comb_plot, filename = paste0(root, "output/ramyg_int_comb_plot.png"), width=5, height=5, units='in', dpi=300, bg = "transparent")
-
+```{r plotting brain}
 
 ### BRAInS 
 
@@ -609,12 +679,86 @@ ggsave(ramyg_int_comb_plot, filename = paste0(root, "output/ramyg_int_comb_plot.
 
 detach("package:psych")
 
-
-brain_model_data = data.frame(
-  region = c("lh_caudate", "rh_amygdala", "rh_amygdala"), 
-  p = c( , ,0.0438),
+brain_model_data_female = data.frame(
+  region = c("caudate", "amygdala", "thalamus proper"), 
+  hemi = c("right", "right", "right"),
+  coefficient = c(-0.017958816, -0.020924852, -0.012114222),
   stringsAsFactors = FALSE)
 
+brain_model_data_male_int = data.frame(
+  region = c("caudate", "caudate"), 
+  hemi = c("left", "right"),
+  coefficient = c(0.015085585, 0.014558427),
+  stringsAsFactors = FALSE)
+
+brain_model_data_male_pub = data.frame(
+  region = "amygdala", 
+  hemi = "left",
+  coefficient = 0.020769495,
+  stringsAsFactors = FALSE)
+
+
+## females 
+
+coronal <- "coronal"
+
+female_brain <- brain_model_data_female %>%
+  ggplot() +
+  geom_brain(atlas = aseg, 
+             aes(fill = coefficient),
+             position = position_brain(coronal)) +
+  labs(title = "")+
+  theme_minimal()+
+  theme(axis.text.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks = element_blank(), 
+        plot.title = element_text(family = "Mulish", size = 22),
+        legend.title = element_text(family = "Mulish", size = 16),
+        legend.text = element_text(family = "Mulish"),
+        text = element_text(color = "#294a96", size = 16))
+
+print(female_brain)
+
+ggsave(plot = female_brain, filename = paste0(root, "output/female_brain.png"), dpi = 300, height = 5, width = 5, bg = "transparent")
+
+
+male_brain_int <- brain_model_data_male_int %>%
+  ggplot() +
+  geom_brain(atlas = aseg, 
+             aes(fill = coefficient),
+             position = position_brain(coronal)) +
+  labs(title = "")+
+  theme_minimal()+
+  theme(axis.text.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks = element_blank(), 
+        plot.title = element_text(family = "Mulish", size = 22),
+        legend.title = element_text(family = "Mulish", size = 16),
+        legend.text = element_text(family = "Mulish"),
+        text = element_text(color = "#294a96", size = 16))
+
+print(male_brain_int)
+
+ggsave(plot = male_brain_int, filename = paste0(root, "output/male_brain_int.png"), dpi = 300, height = 5, width = 5, bg = "transparent")
+
+male_brain_pub <- brain_model_data_male_pub %>%
+  ggplot() +
+  geom_brain(atlas = aseg, 
+             aes(fill = coefficient),
+             position = position_brain(coronal)) +
+  labs(title = "")+
+  theme_minimal()+
+  theme(axis.text.x = element_blank(), 
+        axis.text.y = element_blank(), 
+        axis.ticks = element_blank(), 
+        plot.title = element_text(family = "Mulish", size = 22),
+        legend.title = element_text(family = "Mulish", size = 16),
+        legend.text = element_text(family = "Mulish"),
+        text = element_text(color = "#294a96", size = 16))
+
+print(male_brain_pub)
+
+ggsave(plot = male_brain_pub, filename = paste0(root, "output/male_brain_pub.png"), dpi = 300, height = 5, width = 5, bg = "transparent")
 ```
 
 ```{r longitudinal brain analyses}
